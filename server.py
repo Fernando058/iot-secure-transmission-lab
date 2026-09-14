@@ -5,6 +5,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+import time
 
 from flask import Flask, jsonify, render_template, request
 from Crypto.Cipher import AES
@@ -16,13 +17,17 @@ from Crypto.PublicKey import ECC
 BASE_DIR = Path(__file__).resolve().parent
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024  # 16 KB por solicitud
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
 
-# Local: usa clave_privada.pem en la misma carpeta.
-# Render: luego configuraremos PRIVATE_KEY_PATH hacia el Secret File.
+# Local: clave_privada.pem junto a server.py.
+# Render: PRIVATE_KEY_PATH=/etc/secrets/clave_privada.pem
 PRIVATE_KEY_PATH = Path(
     os.getenv("PRIVATE_KEY_PATH", str(BASE_DIR / "clave_privada.pem"))
 )
+
+# Valor de referencia reportado en la tesina.
+# NO se presenta como telemetría instantánea.
+THESIS_CPU_ESTIMATE_PCT = 40.0
 
 STATE_LOCK = Lock()
 
@@ -32,11 +37,23 @@ ULTIMAS_METRICAS = {
     "voltage": None,
     "sensor_status": "SIN_DATOS",
     "decrypted_message": "-",
-    "latency": 0,
-    "esp_cpu": 0.0,
+
+    # Métricas de rendimiento alineadas con la tesina.
+    "latency_ms": 0,
+    "free_heap_bytes": 0,
+    "free_heap_kb": 0.0,
+    "crypto_ms": 0,
+    "cpu_estimate_pct": THESIS_CPU_ESTIMATE_PCT,
+
+    # Estado criptográfico y de la sesión.
     "crypto_status": "ESPERANDO",
     "last_update": None,
-    "packet_count": 0,
+    "last_seen_epoch": None,
+    "valid_packets": 0,
+    "rejected_packets": 0,
+    "total_packets": 0,
+    "success_rate_pct": 0.0,
+
     "client_pub_preview": "-",
     "nonce_preview": "-",
     "tag_preview": "-",
@@ -44,7 +61,8 @@ ULTIMAS_METRICAS = {
 }
 
 HISTORIAL_LATENCIA = deque(maxlen=20)
-HISTORIAL_CPU = deque(maxlen=20)
+HISTORIAL_MEMORIA_KB = deque(maxlen=20)
+HISTORIAL_CRYPTO_MS = deque(maxlen=20)
 
 
 def load_server_private_key():
@@ -136,11 +154,8 @@ def decode_b64_field(data, field_name):
 
 def parse_sensor_message(message: str):
     """
-    Formato actual esperado del ESP32:
+    Formato esperado:
         mq_adc=1234,mq_v=1.2345
-
-    Si el mensaje cambia, se conserva el texto descifrado y el dashboard
-    seguirá funcionando.
     """
     result = {
         "adc": None,
@@ -150,6 +165,7 @@ def parse_sensor_message(message: str):
 
     try:
         parts = {}
+
         for item in message.split(","):
             if "=" in item:
                 key, value = item.split("=", 1)
@@ -159,19 +175,20 @@ def parse_sensor_message(message: str):
         voltage = float(parts["mq_v"])
 
         if voltage < 1.0:
-            sensor_status = "NORMAL"
+            status = "NORMAL"
         elif voltage <= 1.8:
-            sensor_status = "ALERTA"
+            status = "ALERTA"
         else:
-            sensor_status = "CRITICO"
+            status = "CRITICO"
 
         result.update(
             {
                 "adc": adc,
                 "voltage": round(voltage, 4),
-                "sensor_status": sensor_status,
+                "sensor_status": status,
             }
         )
+
     except (KeyError, TypeError, ValueError):
         pass
 
@@ -185,11 +202,11 @@ def safe_int(value, default=0):
         return default
 
 
-def safe_float(value, default=0.0):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+def calculate_success_rate(valid_packets, total_packets):
+    if total_packets <= 0:
+        return 0.0
+
+    return round((valid_packets / total_packets) * 100.0, 2)
 
 
 @app.after_request
@@ -223,6 +240,7 @@ def health():
             "kdf": "HKDF-SHA256",
             "cipher": "AES-256-GCM",
             "private_key_loaded": True,
+            "deployment": "cloud" if os.getenv("RENDER") else "local",
         }
     )
 
@@ -232,17 +250,49 @@ def get_metrics():
     with STATE_LOCK:
         snapshot = dict(ULTIMAS_METRICAS)
         latency_history = list(HISTORIAL_LATENCIA)
-        cpu_history = list(HISTORIAL_CPU)
+        memory_history = list(HISTORIAL_MEMORIA_KB)
+        crypto_history = list(HISTORIAL_CRYPTO_MS)
+
+    # Estado independiente del ESP32.
+    # El firmware transmite aproximadamente cada 5 s.
+    # <= 12 s  : ACTIVO
+    # 12-30 s  : RETRASADO
+    # > 30 s   : DESCONECTADO
+    last_seen = snapshot.get("last_seen_epoch")
+
+    if last_seen is None:
+        device_age_s = None
+        device_status = "SIN_DATOS"
+    else:
+        device_age_s = max(0, int(time.time() - last_seen))
+
+        if device_age_s <= 12:
+            device_status = "ACTIVO"
+        elif device_age_s <= 30:
+            device_status = "RETRASADO"
+        else:
+            device_status = "DESCONECTADO"
+
+    snapshot["device_status"] = device_status
+    snapshot["device_age_s"] = device_age_s
 
     return jsonify(
         {
             "metrics": snapshot,
             "history_latency": latency_history,
-            "history_cpu": cpu_history,
+            "history_memory_kb": memory_history,
+            "history_crypto_ms": crypto_history,
             "crypto": {
                 "key_exchange": "ECDH P-256",
                 "derivation": "HKDF-SHA256",
                 "encryption": "AES-256-GCM",
+            },
+            "methodological_reference": {
+                "cpu_estimate_pct": THESIS_CPU_ESTIMATE_PCT,
+                "cpu_note": (
+                    "Uso estimado reportado en la tesina; "
+                    "no corresponde a telemetría instantánea."
+                ),
             },
         }
     )
@@ -250,6 +300,10 @@ def get_metrics():
 
 @app.route("/data", methods=["POST"])
 def receive_data():
+    # Cada POST recibido forma parte de la tasa de respuestas correctas.
+    with STATE_LOCK:
+        ULTIMAS_METRICAS["total_packets"] += 1
+
     try:
         if not request.is_json:
             raise ValueError("La solicitud debe usar Content-Type application/json")
@@ -260,6 +314,7 @@ def receive_data():
             raise ValueError("JSON inválido")
 
         raw_b64_ciphertext = data.get("ciphertext")
+
         ciphertext = decode_b64_field(data, "ciphertext")
         nonce = decode_b64_field(data, "nonce")
         tag = decode_b64_field(data, "tag")
@@ -274,8 +329,14 @@ def receive_data():
 
         parsed = parse_sensor_message(decrypted_message)
 
-        latency = safe_int(data.get("latency"), 0)
-        esp_cpu = safe_float(data.get("esp_cpu"), 0.0)
+        # Firmware cloud:
+        # latency = RTT HTTPS real de la petición anterior.
+        # crypto_ms = tiempo real ECDH + HKDF + AES-GCM.
+        # free_heap = memoria heap libre reportada por ESP.getFreeHeap().
+        latency_ms = max(0, safe_int(data.get("latency"), 0))
+        crypto_ms = max(0, safe_int(data.get("crypto_ms"), 0))
+        free_heap_bytes = max(0, safe_int(data.get("free_heap"), 0))
+        free_heap_kb = round(free_heap_bytes / 1024.0, 2)
 
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -285,11 +346,21 @@ def receive_data():
             ULTIMAS_METRICAS["adc"] = parsed["adc"]
             ULTIMAS_METRICAS["voltage"] = parsed["voltage"]
             ULTIMAS_METRICAS["sensor_status"] = parsed["sensor_status"]
-            ULTIMAS_METRICAS["latency"] = latency
-            ULTIMAS_METRICAS["esp_cpu"] = round(esp_cpu, 2)
+
+            ULTIMAS_METRICAS["latency_ms"] = latency_ms
+            ULTIMAS_METRICAS["crypto_ms"] = crypto_ms
+            ULTIMAS_METRICAS["free_heap_bytes"] = free_heap_bytes
+            ULTIMAS_METRICAS["free_heap_kb"] = free_heap_kb
+
             ULTIMAS_METRICAS["crypto_status"] = "VALIDO"
             ULTIMAS_METRICAS["last_update"] = now
-            ULTIMAS_METRICAS["packet_count"] += 1
+            ULTIMAS_METRICAS["last_seen_epoch"] = time.time()
+            ULTIMAS_METRICAS["valid_packets"] += 1
+            ULTIMAS_METRICAS["success_rate_pct"] = calculate_success_rate(
+                ULTIMAS_METRICAS["valid_packets"],
+                ULTIMAS_METRICAS["total_packets"],
+            )
+
             ULTIMAS_METRICAS["client_pub_preview"] = (
                 base64.b64encode(client_pub).decode("ascii")[:42] + "..."
             )
@@ -301,16 +372,27 @@ def receive_data():
             )
             ULTIMAS_METRICAS["last_error"] = None
 
-            HISTORIAL_LATENCIA.append(latency)
-            HISTORIAL_CPU.append(round(esp_cpu, 2))
+            HISTORIAL_LATENCIA.append(latency_ms)
+            HISTORIAL_MEMORIA_KB.append(free_heap_kb)
+            HISTORIAL_CRYPTO_MS.append(crypto_ms)
 
         print(
-            f"[Cripto API] OK | {decrypted_message} | "
-            f"latencia={latency} ms | cpu={esp_cpu:.2f}%"
+            "[Cripto API] OK | "
+            f"{decrypted_message} | "
+            f"latencia={latency_ms} ms | "
+            f"heap={free_heap_kb:.2f} KB | "
+            f"cripto={crypto_ms} ms"
         )
         sys.stdout.flush()
 
-        return jsonify({"status": "OK"}), 200
+        return jsonify(
+            {
+                "status": "OK",
+                "latency_ms": latency_ms,
+                "free_heap_kb": free_heap_kb,
+                "crypto_ms": crypto_ms,
+            }
+        ), 200
 
     except Exception as exc:
         print(f"[Cripto API] Error: {exc}", file=sys.stderr)
@@ -318,19 +400,21 @@ def receive_data():
 
         with STATE_LOCK:
             ULTIMAS_METRICAS["crypto_status"] = "RECHAZADO"
+            ULTIMAS_METRICAS["rejected_packets"] += 1
+            ULTIMAS_METRICAS["success_rate_pct"] = calculate_success_rate(
+                ULTIMAS_METRICAS["valid_packets"],
+                ULTIMAS_METRICAS["total_packets"],
+            )
             ULTIMAS_METRICAS["last_error"] = (
                 "Paquete rechazado: formato inválido o autenticación AES-GCM fallida"
             )
 
-        return (
-            jsonify(
-                {
-                    "status": "FAIL",
-                    "error": "Paquete inválido o autenticación criptográfica fallida",
-                }
-            ),
-            400,
-        )
+        return jsonify(
+            {
+                "status": "FAIL",
+                "error": "Paquete inválido o autenticación criptográfica fallida",
+            }
+        ), 400
 
 
 if __name__ == "__main__":
