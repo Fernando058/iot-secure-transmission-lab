@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Secure Transmission Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <main class="shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">MAESTRÍA EN CIBERSEGURIDAD · PROTOTIPO EXPERIMENTAL</p>
+                <h1>IoT Secure Transmission Lab</h1>
+                <p class="subtitle">
+                    Protección de datos con ECDH P-256 + HKDF-SHA256 + AES-256-GCM
+                </p>
+            </div>
+
+            <div class="server-state">
+                <span id="server-dot" class="status-dot offline"></span>
+                <div>
+                    <span class="state-label">SERVIDOR</span>
+                    <strong id="server-text">VERIFICANDO</strong>
+                </div>
+            </div>
+        </header>
+
+        <section class="flow-panel panel">
+            <div class="flow-node">
+                <span class="node-kicker">ORIGEN</span>
+                <strong>Sensor MQ</strong>
+                <small>Lectura ADC / voltaje</small>
+            </div>
+
+            <div class="flow-arrow">→</div>
+
+            <div class="flow-node accent">
+                <span class="node-kicker">NODO IoT</span>
+                <strong>ESP32 WROOM-32U</strong>
+                <small>ECDH · HKDF · AES-GCM</small>
+            </div>
+
+            <div class="flow-arrow secure">🔒</div>
+
+            <div class="flow-node">
+                <span class="node-kicker">TRANSPORTE</span>
+                <strong id="transport-label">CANAL</strong>
+                <small>JSON cifrado</small>
+            </div>
+
+            <div class="flow-arrow">→</div>
+
+            <div class="flow-node accent">
+                <span class="node-kicker">BACKEND</span>
+                <strong>Flask</strong>
+                <small>Verificación + descifrado</small>
+            </div>
+        </section>
+
+        <section class="cards">
+            <article class="metric-card">
+                <span class="card-label">INTEGRIDAD AES-GCM</span>
+                <div class="metric-row">
+                    <strong id="crypto-status" class="big-value waiting">ESPERANDO</strong>
+                    <span id="crypto-badge" class="badge neutral">SIN PAQUETE</span>
+                </div>
+                <p id="crypto-error" class="helper">El servidor aún no ha procesado tráfico cifrado.</p>
+            </article>
+
+            <article class="metric-card">
+                <span class="card-label">DATO RECUPERADO</span>
+                <div class="sensor-grid">
+                    <div>
+                        <small>ADC</small>
+                        <strong id="adc-value">—</strong>
+                    </div>
+                    <div>
+                        <small>Voltaje</small>
+                        <strong id="voltage-value">—</strong>
+                    </div>
+                </div>
+                <span id="sensor-status" class="badge neutral">SIN DATOS</span>
+            </article>
+
+            <article class="metric-card">
+                <span class="card-label">LATENCIA REPORTADA</span>
+                <strong id="latency-value" class="big-value">0 ms</strong>
+                <p class="helper">Métrica enviada actualmente por el firmware ESP32.</p>
+            </article>
+
+            <article class="metric-card">
+                <span class="card-label">CPU REPORTADA POR ESP32</span>
+                <strong id="cpu-value" class="big-value">0.00 %</strong>
+                <p class="helper">La instrumentación del firmware se ajustará en la siguiente etapa.</p>
+            </article>
+        </section>
+
+        <section class="grid-2">
+            <article class="panel cipher-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="card-label">PAQUETE EN TRÁNSITO</span>
+                        <h2>Ciphertext recibido</h2>
+                    </div>
+                    <span class="badge info">BASE64</span>
+                </div>
+                <pre id="ciphertext-value" class="ciphertext">-</pre>
+
+                <div class="crypto-details">
+                    <div>
+                        <span>CLIENT PUBLIC KEY</span>
+                        <code id="client-pub-value">-</code>
+                    </div>
+                    <div>
+                        <span>NONCE</span>
+                        <code id="nonce-value">-</code>
+                    </div>
+                    <div>
+                        <span>AUTH TAG</span>
+                        <code id="tag-value">-</code>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="card-label">TELEMETRÍA</span>
+                        <h2>Estado de la sesión</h2>
+                    </div>
+                </div>
+
+                <dl class="session-list">
+                    <div>
+                        <dt>Paquetes válidos</dt>
+                        <dd id="packet-count">0</dd>
+                    </div>
+                    <div>
+                        <dt>Última recepción</dt>
+                        <dd id="last-update">—</dd>
+                    </div>
+                    <div>
+                        <dt>Intercambio</dt>
+                        <dd>ECDH P-256</dd>
+                    </div>
+                    <div>
+                        <dt>Derivación</dt>
+                        <dd>HKDF-SHA256</dd>
+                    </div>
+                    <div>
+                        <dt>Cifrado</dt>
+                        <dd>AES-256-GCM</dd>
+                    </div>
+                </dl>
+            </article>
+        </section>
+
+        <section class="grid-2">
+            <article class="panel chart-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="card-label">HISTÓRICO</span>
+                        <h2>Latencia</h2>
+                    </div>
+                    <strong id="latency-last">0 ms</strong>
+                </div>
+
+                <svg class="chart" viewBox="0 0 600 190" role="img" aria-label="Histórico de latencia">
+                    <line class="axis" x1="30" y1="160" x2="575" y2="160"></line>
+                    <polyline id="latency-line" class="chart-line latency-line" points=""></polyline>
+                </svg>
+            </article>
+
+            <article class="panel chart-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="card-label">HISTÓRICO</span>
+                        <h2>CPU reportada</h2>
+                    </div>
+                    <strong id="cpu-last">0.00 %</strong>
+                </div>
+
+                <svg class="chart" viewBox="0 0 600 190" role="img" aria-label="Histórico de CPU">
+                    <line class="axis" x1="30" y1="160" x2="575" y2="160"></line>
+                    <polyline id="cpu-line" class="chart-line cpu-line" points=""></polyline>
+                </svg>
+            </article>
+        </section>
+
+        <footer>
+            <span>Prototipo académico · ESP32 WROOM-32U + Flask</span>
+            <span id="footer-state">Sincronizando…</span>
+        </footer>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
