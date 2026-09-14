@@ -14,7 +14,7 @@
                 <h1>IoT Secure Transmission Lab</h1>
                 <p class="subtitle">
                     ECDH P-256 + HKDF-SHA256 + AES-256-GCM ·
-                    telemetría alineada con los indicadores de la tesina
+                    telemetría alineada con los indicadores de la experimentación local
                 </p>
             </div>
 
@@ -101,8 +101,7 @@
                 <span class="card-label">LATENCIA DE ENVÍO</span>
                 <strong id="latency-value" class="big-value">0 ms</strong>
                 <p class="helper">
-                    RTT HTTPS real reportado por el ESP32. En la tesina este indicador
-                    corresponde a la latencia de transmisión.
+                    RTT HTTPS real reportado por el ESP32; representa la latencia de transmisión del despliegue cloud.
                 </p>
             </article>
 
@@ -115,11 +114,10 @@
             </article>
 
             <article class="metric-card">
-                <span class="card-label">CPU ESTIMADO · TESINA</span>
+                <span class="card-label">CPU ESTIMADO · EXPERIMENTACIÓN LOCAL</span>
                 <strong id="cpu-reference-value" class="big-value">40.00 %</strong>
                 <p class="helper">
-                    Referencia experimental reportada en el documento. No se presenta
-                    como medición instantánea del despliegue cloud.
+                    Referencia experimental obtenida durante la experimentación local. No se presenta como medición instantánea del despliegue cloud.
                 </p>
             </article>
 
@@ -243,10 +241,7 @@
                 <strong>Indicadores de rendimiento del prototipo</strong>
             </div>
             <p>
-                El dashboard diferencia la telemetría actual del despliegue cloud de la
-                referencia experimental documentada en la tesina. Latencia y memoria se
-                muestran como mediciones actuales; el 40 % de CPU se conserva únicamente
-                como valor estimado reportado en el documento.
+                El dashboard diferencia la telemetría actual del despliegue cloud de los valores obtenidos durante la experimentación local. Latencia y memoria se muestran como mediciones actuales; el 40 % de CPU se conserva únicamente como referencia estimada de la experimentación local.
             </p>
         </section>
 

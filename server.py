@@ -25,9 +25,9 @@ PRIVATE_KEY_PATH = Path(
     os.getenv("PRIVATE_KEY_PATH", str(BASE_DIR / "clave_privada.pem"))
 )
 
-# Valor de referencia reportado en la tesina.
-# NO se presenta como telemetría instantánea.
-THESIS_CPU_ESTIMATE_PCT = 40.0
+# Valor de referencia obtenido durante la experimentación local.
+# NO se presenta como telemetría instantánea del despliegue cloud.
+LOCAL_CPU_ESTIMATE_PCT = 40.0
 
 STATE_LOCK = Lock()
 
@@ -38,12 +38,12 @@ ULTIMAS_METRICAS = {
     "sensor_status": "SIN_DATOS",
     "decrypted_message": "-",
 
-    # Métricas de rendimiento alineadas con la tesina.
+    # Métricas de rendimiento alineadas con la experimentación local.
     "latency_ms": 0,
     "free_heap_bytes": 0,
     "free_heap_kb": 0.0,
     "crypto_ms": 0,
-    "cpu_estimate_pct": THESIS_CPU_ESTIMATE_PCT,
+    "cpu_estimate_pct": LOCAL_CPU_ESTIMATE_PCT,
 
     # Estado criptográfico y de la sesión.
     "crypto_status": "ESPERANDO",
@@ -288,10 +288,10 @@ def get_metrics():
                 "encryption": "AES-256-GCM",
             },
             "methodological_reference": {
-                "cpu_estimate_pct": THESIS_CPU_ESTIMATE_PCT,
+                "cpu_estimate_pct": LOCAL_CPU_ESTIMATE_PCT,
                 "cpu_note": (
-                    "Uso estimado reportado en la tesina; "
-                    "no corresponde a telemetría instantánea."
+                    "Uso estimado obtenido durante la experimentación local; "
+                    "no corresponde a telemetría instantánea del despliegue cloud."
                 ),
             },
         }
