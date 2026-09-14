@@ -144,16 +144,29 @@ h1 {
     padding: 22px;
 }
 
+
+
+
+
+
+
+
+
+/* ===== Flujo criptográfico animado ===== */
 .flow-panel {
+    position: relative;
     display: grid;
-    grid-template-columns: 1fr auto 1.25fr auto 1fr auto 1.2fr;
+    grid-template-columns: minmax(150px, 1fr) 54px minmax(230px, 1.25fr) 90px minmax(165px, 1fr) 54px minmax(210px, 1.15fr);
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     margin-bottom: 18px;
+    overflow: hidden;
 }
 
 .flow-node {
-    min-height: 104px;
+    position: relative;
+    z-index: 2;
+    min-height: 118px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -161,6 +174,11 @@ h1 {
     border: 1px solid rgba(148, 163, 184, 0.12);
     border-radius: 14px;
     background: rgba(4, 16, 29, 0.50);
+    transition:
+        border-color 250ms ease,
+        box-shadow 250ms ease,
+        transform 250ms ease,
+        background 250ms ease;
 }
 
 .flow-node.accent {
@@ -179,16 +197,229 @@ h1 {
 .flow-node small {
     margin-top: 5px;
     color: var(--muted);
+    line-height: 1.35;
+}
+
+.flow-node.flow-active {
+    transform: translateY(-3px);
+    border-color: rgba(34, 211, 238, 0.72);
+    background: linear-gradient(
+        145deg,
+        rgba(8, 54, 75, 0.88),
+        rgba(9, 31, 52, 0.88)
+    );
+    box-shadow:
+        0 0 0 1px rgba(34, 211, 238, 0.12),
+        0 0 28px rgba(34, 211, 238, 0.24);
+}
+
+.flow-node.flow-success {
+    border-color: rgba(52, 211, 153, 0.72);
+    box-shadow:
+        0 0 0 1px rgba(52, 211, 153, 0.12),
+        0 0 30px rgba(52, 211, 153, 0.23);
+}
+
+.flow-node.flow-error {
+    border-color: rgba(251, 113, 133, 0.76);
+    box-shadow:
+        0 0 0 1px rgba(251, 113, 133, 0.10),
+        0 0 30px rgba(251, 113, 133, 0.24);
+}
+
+.flow-link {
+    position: relative;
+    z-index: 1;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flow-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(
+        90deg,
+        rgba(96, 165, 250, 0.22),
+        rgba(34, 211, 238, 0.60),
+        rgba(96, 165, 250, 0.22)
+    );
 }
 
 .flow-arrow {
+    position: relative;
+    z-index: 2;
     color: var(--blue);
-    font-size: 1.65rem;
+    font-size: 1.55rem;
     font-weight: 900;
+    background: #0a192a;
+    padding: 0 6px;
 }
 
-.flow-arrow.secure {
-    font-size: 1.2rem;
+.secure-link {
+    min-width: 80px;
+}
+
+.channel-lock {
+    position: relative;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(7, 17, 31, 0.92);
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.10);
+    transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.secure-link.channel-active .channel-lock {
+    animation: lockPulse 0.85s ease-in-out infinite alternate;
+}
+
+.packet-orb {
+    position: absolute;
+    z-index: 5;
+    left: -8px;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    opacity: 0;
+    transform: translateY(-50%);
+    background: var(--cyan);
+    box-shadow:
+        0 0 8px rgba(34, 211, 238, 0.95),
+        0 0 22px rgba(34, 211, 238, 0.75),
+        0 0 38px rgba(96, 165, 250, 0.42);
+}
+
+.secure-link.channel-active .packet-orb {
+    opacity: 1;
+    animation: packetTravel 1.15s cubic-bezier(.45,.05,.55,.95) forwards;
+}
+
+.crypto-pipeline,
+.backend-steps {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.crypto-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 999px;
+    background: rgba(4, 16, 29, 0.52);
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    transition:
+        color 180ms ease,
+        border-color 180ms ease,
+        background 180ms ease,
+        box-shadow 180ms ease;
+}
+
+.crypto-step.step-active {
+    color: #d9fbff;
+    border-color: rgba(34, 211, 238, 0.55);
+    background: rgba(34, 211, 238, 0.14);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.24);
+}
+
+.crypto-step.step-success {
+    color: #d9fff0;
+    border-color: rgba(52, 211, 153, 0.56);
+    background: rgba(52, 211, 153, 0.13);
+    box-shadow: 0 0 16px rgba(52, 211, 153, 0.20);
+}
+
+.crypto-step-arrow {
+    color: rgba(148, 163, 184, 0.46);
+    font-size: 0.7rem;
+}
+
+.flow-caption {
+    grid-column: 1 / -1;
+    min-height: 22px;
+    margin-top: 4px;
+    color: var(--muted);
+    text-align: center;
+    font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.02em;
+    transition: color 180ms ease;
+}
+
+.flow-caption.active {
+    color: var(--cyan);
+}
+
+.flow-caption.success {
+    color: var(--green);
+}
+
+.flow-caption.error {
+    color: var(--red);
+}
+
+@keyframes packetTravel {
+    0% {
+        left: -8px;
+        transform: translateY(-50%) scale(0.75);
+    }
+    45% {
+        transform: translateY(-50%) scale(1.15);
+    }
+    100% {
+        left: calc(100% - 8px);
+        transform: translateY(-50%) scale(0.8);
+    }
+}
+
+@keyframes lockPulse {
+    from {
+        transform: scale(1);
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.18);
+    }
+    to {
+        transform: scale(1.10);
+        box-shadow: 0 0 28px rgba(34, 211, 238, 0.48);
+    }
+}
+
+@keyframes dataFlash {
+    0% {
+        transform: scale(1);
+        box-shadow: var(--shadow);
+    }
+    50% {
+        transform: scale(1.015);
+        box-shadow:
+            var(--shadow),
+            0 0 34px rgba(52, 211, 153, 0.18);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: var(--shadow);
+    }
+}
+
+.metric-card.data-arrived {
+    animation: dataFlash 0.95s ease;
 }
 
 .cards {
@@ -468,15 +699,8 @@ footer {
 }
 
 @media (max-width: 1100px) {
-    .flow-panel {
-        grid-template-columns: 1fr;
-    }
-
-    .flow-arrow {
-        transform: rotate(90deg);
-        justify-self: center;
-    }
-
+    
+    
     .grid-2,
     .charts-grid {
         grid-template-columns: 1fr;

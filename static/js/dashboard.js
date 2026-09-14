@@ -148,6 +148,176 @@ function drawLine(id, values) {
     polyline.setAttribute("points", points.join(" "));
 }
 
+
+let lastAnimatedPacketCount = null;
+let flowAnimationRunning = false;
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resetFlowAnimation() {
+    [
+        "node-sensor",
+        "node-esp32",
+        "node-transport",
+        "node-flask"
+    ].forEach((id) => {
+        const el = $(id);
+        if (el) {
+            el.classList.remove("flow-active", "flow-success", "flow-error");
+        }
+    });
+
+    [
+        "step-ecdh",
+        "step-hkdf",
+        "step-aes",
+        "step-verify",
+        "step-decrypt"
+    ].forEach((id) => {
+        const el = $(id);
+        if (el) {
+            el.classList.remove("step-active", "step-success");
+        }
+    });
+
+    const channel = $("encrypted-channel");
+    if (channel) channel.classList.remove("channel-active");
+
+    const caption = $("flow-caption");
+    if (caption) {
+        caption.classList.remove("active", "success", "error");
+        caption.textContent = "Esperando un nuevo paquete cifrado…";
+    }
+}
+
+function activateStep(id, success = false) {
+    const el = $(id);
+    if (!el) return;
+
+    el.classList.remove("step-active", "step-success");
+    el.classList.add(success ? "step-success" : "step-active");
+}
+
+async function runEndToEndAnimation(isValid = true) {
+    if (flowAnimationRunning) return;
+
+    flowAnimationRunning = true;
+    resetFlowAnimation();
+
+    const caption = $("flow-caption");
+    const sensor = $("node-sensor");
+    const esp32 = $("node-esp32");
+    const transport = $("node-transport");
+    const flask = $("node-flask");
+    const channel = $("encrypted-channel");
+
+    try {
+        // 1. Captura en origen
+        sensor?.classList.add("flow-active");
+        caption?.classList.add("active");
+        if (caption) caption.textContent = "1/6 · Sensor MQ: lectura capturada en el origen";
+        await sleep(420);
+
+        // 2. ECDH
+        sensor?.classList.remove("flow-active");
+        esp32?.classList.add("flow-active");
+        activateStep("step-ecdh");
+        if (caption) caption.textContent = "2/6 · ESP32: establecimiento del secreto compartido mediante ECDH";
+        await sleep(430);
+
+        // 3. HKDF
+        activateStep("step-ecdh", true);
+        activateStep("step-hkdf");
+        if (caption) caption.textContent = "3/6 · ESP32: derivación de clave con HKDF-SHA256";
+        await sleep(430);
+
+        // 4. AES-GCM
+        activateStep("step-hkdf", true);
+        activateStep("step-aes");
+        if (caption) caption.textContent = "4/6 · ESP32: cifrado autenticado AES-256-GCM";
+        await sleep(480);
+        activateStep("step-aes", true);
+
+        // 5. Tránsito cifrado
+        esp32?.classList.remove("flow-active");
+        transport?.classList.add("flow-active");
+        channel?.classList.remove("channel-active");
+        // reflow to allow replay of CSS animation
+        void channel?.offsetWidth;
+        channel?.classList.add("channel-active");
+        if (caption) caption.textContent = "5/6 · Tránsito: ciphertext, nonce, tag y client_pub viajan protegidos";
+        await sleep(1200);
+
+        transport?.classList.remove("flow-active");
+        flask?.classList.add(isValid ? "flow-active" : "flow-error");
+
+        // 6. Verificación y descifrado
+        activateStep("step-verify");
+        if (caption) caption.textContent = "6/6 · Flask: validación de integridad mediante TAG AES-GCM";
+        await sleep(420);
+
+        if (isValid) {
+            activateStep("step-verify", true);
+            activateStep("step-decrypt");
+            await sleep(420);
+            activateStep("step-decrypt", true);
+
+            flask?.classList.remove("flow-active");
+            flask?.classList.add("flow-success");
+
+            caption?.classList.remove("active");
+            caption?.classList.add("success");
+            if (caption) caption.textContent = "✓ Paquete autenticado y dato recuperado únicamente en el servidor";
+
+            // Resaltar la tarjeta de dato recuperado.
+            const recoveredCard = $("adc-value")?.closest(".metric-card");
+            if (recoveredCard) {
+                recoveredCard.classList.remove("data-arrived");
+                void recoveredCard.offsetWidth;
+                recoveredCard.classList.add("data-arrived");
+            }
+        } else {
+            caption?.classList.remove("active");
+            caption?.classList.add("error");
+            if (caption) caption.textContent = "✕ Paquete rechazado: la autenticación AES-GCM no fue válida";
+        }
+
+        await sleep(1600);
+    } finally {
+        resetFlowAnimation();
+        flowAnimationRunning = false;
+    }
+}
+
+function maybeAnimateNewPacket(metrics) {
+    const packetCount = Number(metrics.valid_packets ?? 0);
+
+    // Evita animar datos históricos al abrir/recargar el dashboard.
+    if (lastAnimatedPacketCount === null) {
+        lastAnimatedPacketCount = packetCount;
+        return;
+    }
+
+    if (packetCount > lastAnimatedPacketCount) {
+        lastAnimatedPacketCount = packetCount;
+        runEndToEndAnimation(true);
+        return;
+    }
+
+    if (metrics.crypto_status === "RECHAZADO") {
+        const rejectedCount = Number(metrics.rejected_packets ?? 0);
+        const rejectionKey = `r:${rejectedCount}`;
+
+        if (window.__lastRejectionAnimation !== rejectionKey) {
+            window.__lastRejectionAnimation = rejectionKey;
+            runEndToEndAnimation(false);
+        }
+    }
+}
+
+
 async function checkHealth() {
     try {
         const response = await fetch("/api/health", { cache: "no-store" });
@@ -182,6 +352,7 @@ async function updateDashboard() {
         updateDeviceState(metrics);
         updateCryptoStatus(metrics);
         updateSensorStatus(metrics.sensor_status);
+        maybeAnimateNewPacket(metrics);
 
         setText("adc-value", metrics.adc ?? "—");
 

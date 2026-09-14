@@ -38,35 +38,63 @@
             </div>
         </header>
 
-        <section class="flow-panel panel">
-            <div class="flow-node">
+        <section class="flow-panel panel" id="crypto-flow">
+            <div class="flow-node" id="node-sensor">
                 <span class="node-kicker">ORIGEN</span>
                 <strong>Sensor MQ</strong>
                 <small>Lectura ADC / voltaje</small>
             </div>
 
-            <div class="flow-arrow">→</div>
+            <div class="flow-link" aria-hidden="true">
+                <span class="flow-line"></span>
+                <span class="flow-arrow">→</span>
+            </div>
 
-            <div class="flow-node accent">
+            <div class="flow-node accent" id="node-esp32">
                 <span class="node-kicker">NODO IoT</span>
                 <strong>ESP32 WROOM-32U</strong>
                 <small>ECDH · HKDF · AES-GCM</small>
+
+                <div class="crypto-pipeline" aria-label="Proceso criptográfico en el ESP32">
+                    <span id="step-ecdh" class="crypto-step">ECDH</span>
+                    <span class="crypto-step-arrow">→</span>
+                    <span id="step-hkdf" class="crypto-step">HKDF</span>
+                    <span class="crypto-step-arrow">→</span>
+                    <span id="step-aes" class="crypto-step">AES-GCM</span>
+                </div>
             </div>
 
-            <div class="flow-arrow secure">🔒</div>
+            <div class="flow-link secure-link" id="encrypted-channel" aria-hidden="true">
+                <span class="flow-line"></span>
+                <span class="channel-lock">🔒</span>
+                <span id="packet-orb" class="packet-orb" title="Paquete cifrado"></span>
+            </div>
 
-            <div class="flow-node">
+            <div class="flow-node" id="node-transport">
                 <span class="node-kicker">TRANSPORTE</span>
                 <strong id="transport-label">CANAL</strong>
-                <small>JSON cifrado</small>
+                <small>ciphertext · nonce · tag · client_pub</small>
             </div>
 
-            <div class="flow-arrow">→</div>
+            <div class="flow-link" aria-hidden="true">
+                <span class="flow-line"></span>
+                <span class="flow-arrow">→</span>
+            </div>
 
-            <div class="flow-node accent">
+            <div class="flow-node accent" id="node-flask">
                 <span class="node-kicker">BACKEND</span>
                 <strong>Flask</strong>
                 <small>Verificación + descifrado</small>
+
+                <div class="backend-steps">
+                    <span id="step-verify" class="crypto-step">TAG</span>
+                    <span class="crypto-step-arrow">→</span>
+                    <span id="step-decrypt" class="crypto-step">DESCIFRADO</span>
+                </div>
+            </div>
+
+            <div id="flow-caption" class="flow-caption" aria-live="polite">
+                Esperando un nuevo paquete cifrado…
             </div>
         </section>
 
